@@ -1,3 +1,3 @@
-module github.com/fudoge/flux-to-ntfy
+module github.com/fudoge/ntfy-gateway
 
 go 1.26.6
