@@ -1,0 +1,144 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Build, scan, and publish image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:latest
+          format: table
+          exit-code: "1"
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push scanned image
+        env:
+          IMAGE_TAGS: ${{ steps.metadata.outputs.tags }}
+        run: |
+          while IFS= read -r image_tag; do
+            if [ -n "$image_tag" ]; then
+              docker push "$image_tag"
+            fi
+          done <<< "$IMAGE_TAGS"
+
+  release:
+    name: Publish release binaries
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+
+          for target in \
+            linux/amd64 \
+            linux/arm64 \
+            darwin/amd64 \
+            darwin/arm64 \
+            windows/amd64
+          do
+            goos=${target%/*}
+            goarch=${target#*/}
+            staging_dir=$(mktemp -d)
+            binary_name=ntfy-gateway
+
+            if [ "$goos" = "windows" ]; then
+              binary_name=ntfy-gateway.exe
+            fi
+
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags="-s -w" \
+              -o "$staging_dir/$binary_name" ./cmd/ntfy-gateway
+
+            if [ "$goos" = "windows" ]; then
+              zip -j "dist/ntfy-gateway_${goos}_${goarch}.zip" \
+                "$staging_dir/$binary_name"
+            else
+              tar -C "$staging_dir" -czf \
+                "dist/ntfy-gateway_${goos}_${goarch}.tar.gz" \
+                "$binary_name"
+            fi
+          done
+
+          sha256sum dist/* > dist/checksums.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --title "$RELEASE_TAG"
+          fi
