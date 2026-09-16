@@ -6,33 +6,34 @@ import (
 	"net/http"
 
 	"github.com/fudoge/flux-to-ntfy/internal/config"
-	"github.com/fudoge/flux-to-ntfy/internal/handler"
 )
 
 type Server struct {
+	logger     *slog.Logger
 	httpServer *http.Server
 }
 
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, logger *slog.Logger, handler http.Handler) *Server {
 	return &Server{
+		logger: logger.With(slog.String("component", "server")),
 		httpServer: &http.Server{
 			Addr:    cfg.BindAddress,
-			Handler: handler.NewHandler(),
+			Handler: handler,
 		},
 	}
 }
 
 func (s *Server) Start() error {
-	slog.Info("server is starting", "addr", s.httpServer.Addr)
+	s.logger.Info("server is starting", "addr", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	slog.Info("server is shutting down")
+	s.logger.Info("server is shutting down")
 	err := s.httpServer.Shutdown(ctx)
 	if err != nil {
 		return err
 	}
-	slog.Info("server shutdown complete")
+	s.logger.Info("server shutdown complete")
 	return nil
 }
