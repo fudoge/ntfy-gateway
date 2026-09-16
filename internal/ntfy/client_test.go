@@ -31,6 +31,9 @@ func TestClientPublish(t *testing.T) {
 			if request.Header.Get("X-Title") != "Kustomization/apps" {
 				t.Errorf("X-Title = %q", request.Header.Get("X-Title"))
 			}
+			if request.Header.Get("X-Tags") != "x" {
+				t.Errorf("X-Tags = %q", request.Header.Get("X-Tags"))
+			}
 
 			body, err := io.ReadAll(request.Body)
 			if err != nil {
@@ -51,10 +54,33 @@ func TestClientPublish(t *testing.T) {
 
 	client := NewClient("https://ntfy.example.com", "ntfy-token", httpClient)
 	err := client.Publish(context.Background(), "production-alerts", domain.Event{
-		Title:   "Kustomization/apps",
-		Message: "deployment completed",
+		Title:    "Kustomization/apps",
+		Message:  "deployment completed",
+		Severity: "error",
 	})
 	if err != nil {
 		t.Fatalf("Publish() error = %v", err)
+	}
+}
+
+func TestSeverityTag(t *testing.T) {
+	tests := map[string]string{
+		"critical": "rotating_light",
+		"FATAL":    "rotating_light",
+		"error":    "x",
+		"warning":  "warning",
+		"WARN":     "warning",
+		"success":  "white_check_mark",
+		"info":     "information_source",
+		"debug":    "",
+		"":         "",
+	}
+
+	for severity, want := range tests {
+		t.Run(severity, func(t *testing.T) {
+			if got := severityTag(severity); got != want {
+				t.Errorf("severityTag(%q) = %q, want %q", severity, got, want)
+			}
+		})
 	}
 }

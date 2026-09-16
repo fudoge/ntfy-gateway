@@ -39,6 +39,9 @@ func (c *Client) Publish(ctx context.Context, topic string, event domain.Event) 
 
 	request.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	request.Header.Set("X-Title", event.Title)
+	if tag := severityTag(event.Severity); tag != "" {
+		request.Header.Set("X-Tags", tag)
+	}
 	if c.token != "" {
 		request.Header.Set("Authorization", "Bearer "+c.token)
 	}
@@ -62,4 +65,21 @@ func (c *Client) Publish(ctx context.Context, topic string, event domain.Event) 
 	}
 
 	return nil
+}
+
+func severityTag(severity string) string {
+	switch strings.ToLower(severity) {
+	case "critical", "fatal":
+		return "rotating_light"
+	case "error":
+		return "x"
+	case "warning", "warn":
+		return "warning"
+	case "success":
+		return "white_check_mark"
+	case "info":
+		return "information_source"
+	default:
+		return ""
+	}
 }
