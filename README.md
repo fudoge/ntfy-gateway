@@ -201,6 +201,18 @@ The generic payload supports the following fields:
 | `timestamp` | RFC 3339 string | Time at which the event occurred. |
 | `metadata` | object of strings | Additional event metadata. |
 
+Recognized severity values are converted to ntfy emoji tags:
+
+| Severity | ntfy tag | Emoji |
+| --- | --- | --- |
+| `critical`, `fatal` | `rotating_light` | 🚨 |
+| `error` | `x` | ❌ |
+| `warning`, `warn` | `warning` | ⚠️ |
+| `success` | `white_check_mark` | ✅ |
+| `info` | `information_source` | ℹ️ |
+
+Severity matching is case-insensitive. Unknown or empty values do not add a tag.
+
 ## Configuring Flux
 
 Configure a Flux generic Provider to send events to the matching gateway source.
