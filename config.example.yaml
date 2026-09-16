@@ -1,0 +1,22 @@
+server:
+  address: ":8080"
+
+ntfy:
+  endpoint: "https://ntfy.sh"
+  token_env: "NTFY_TOKEN"
+
+sources:
+  flux-production:
+    type: "flux"
+    topic: "production-alerts"
+    secret_env: "FLUX_PRODUCTION_SECRET"
+
+  flux-staging:
+    type: "flux"
+    topic: "staging-alerts"
+    secret_env: "FLUX_STAGING_SECRET"
+
+  monitoring:
+    type: "generic"
+    topic: "monitoring-alerts"
+    secret_env: "MONITORING_SECRET"

@@ -17,7 +17,7 @@ func New(cfg *config.Config, logger *slog.Logger, handler http.Handler) *Server 
 	return &Server{
 		logger: logger.With(slog.String("component", "server")),
 		httpServer: &http.Server{
-			Addr:    cfg.BindAddress,
+			Addr:    cfg.Server.Address,
 			Handler: handler,
 		},
 	}
