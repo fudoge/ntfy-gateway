@@ -6,18 +6,21 @@ import (
 	"net/http"
 )
 
-func NewHandler() *http.ServeMux {
+func NewHandler(logger *slog.Logger) *http.ServeMux {
+	logger = logger.With(slog.String("component", "handler"))
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", health)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		health(logger, w, r)
+	})
 
 	return mux
 }
 
-func health(w http.ResponseWriter, r *http.Request) {
+func health(logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, "ok"); err != nil {
-		slog.Error("failed to write health response", "error", err)
+		logger.Error("failed to write health response", "error", err)
 	}
 }

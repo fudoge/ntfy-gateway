@@ -11,17 +11,25 @@ import (
 	"time"
 
 	"github.com/fudoge/flux-to-ntfy/internal/config"
+	"github.com/fudoge/flux-to-ntfy/internal/handler"
 	"github.com/fudoge/flux-to-ntfy/internal/server"
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})).With(
+		slog.String("service", "flux-to-ntfy"),
+	)
+
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("failed to load config", "error", err)
+		logger.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	s := server.New(cfg)
+	httpHandler := handler.NewHandler(logger)
+	s := server.New(cfg, logger, httpHandler)
 	signalCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -38,12 +46,12 @@ func main() {
 	select {
 	case err := <-serverErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("server failed", "error", err)
+			logger.Error("server failed", "error", err)
 			os.Exit(1)
 		}
 		return
 	case <-signalCtx.Done():
-		slog.Info("shutdown signal received")
+		logger.Info("shutdown signal received")
 	}
 
 	stop()
@@ -54,11 +62,11 @@ func main() {
 	defer cancel()
 
 	if err := s.Shutdown(shutdownCtx); err != nil {
-		slog.Error("graceful shutdown failed", "error", err)
+		logger.Error("graceful shutdown failed", "error", err)
 	}
 
 	err = <-serverErr
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("server stopped with error", "error", err)
+		logger.Error("server stopped with error", "error", err)
 	}
 }
