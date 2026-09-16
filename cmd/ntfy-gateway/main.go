@@ -10,9 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fudoge/ntfy-gateway/internal/adapter/flux"
+	"github.com/fudoge/ntfy-gateway/internal/adapter/generic"
 	"github.com/fudoge/ntfy-gateway/internal/config"
 	"github.com/fudoge/ntfy-gateway/internal/handler"
+	"github.com/fudoge/ntfy-gateway/internal/ntfy"
 	"github.com/fudoge/ntfy-gateway/internal/server"
+	"github.com/fudoge/ntfy-gateway/internal/service"
 )
 
 func main() {
@@ -28,7 +32,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	httpHandler := handler.NewHandler(logger)
+	decoders := map[string]service.Decoder{
+		"flux":    flux.Decoder{},
+		"generic": generic.Decoder{},
+	}
+
+	sources := make(map[string]service.Source, len(cfg.Sources))
+	for sourceID, sourceConfig := range cfg.Sources {
+		sources[sourceID] = service.Source{
+			Type:   sourceConfig.Type,
+			Topic:  sourceConfig.Topic,
+			Secret: os.Getenv(sourceConfig.SecretEnv),
+		}
+	}
+
+	ntfyToken := ""
+	if cfg.Ntfy.TokenEnv != "" {
+		ntfyToken = os.Getenv(cfg.Ntfy.TokenEnv)
+	}
+
+	publisher := ntfy.NewClient(
+		cfg.Ntfy.Endpoint,
+		ntfyToken,
+		&http.Client{Timeout: 10 * time.Second},
+	)
+	gateway := service.NewGateway(sources, decoders, publisher)
+	httpHandler := handler.NewHandler(gateway, logger)
 	s := server.New(cfg, logger, httpHandler)
 	signalCtx, stop := signal.NotifyContext(
 		context.Background(),
