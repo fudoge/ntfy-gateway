@@ -10,16 +10,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fudoge/flux-to-ntfy/internal/config"
-	"github.com/fudoge/flux-to-ntfy/internal/handler"
-	"github.com/fudoge/flux-to-ntfy/internal/server"
+	"github.com/fudoge/ntfy-gateway/internal/config"
+	"github.com/fudoge/ntfy-gateway/internal/handler"
+	"github.com/fudoge/ntfy-gateway/internal/server"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})).With(
-		slog.String("service", "flux-to-ntfy"),
+		slog.String("service", "ntfy-gateway"),
 	)
 
 	cfg, err := config.Load()

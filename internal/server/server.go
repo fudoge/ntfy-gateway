@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/fudoge/flux-to-ntfy/internal/config"
+	"github.com/fudoge/ntfy-gateway/internal/config"
 )
 
 type Server struct {
