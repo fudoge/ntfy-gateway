@@ -18,7 +18,10 @@ const (
 	pathEnv     = "CONFIG_PATH"
 )
 
-var sourceNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+var (
+	sourceNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+	topicPattern      = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+)
 
 type Config struct {
 	Server  ServerConfig            `yaml:"server"`
@@ -127,8 +130,8 @@ func validateSource(name string, source SourceConfig) error {
 		return fmt.Errorf("source %q: unsupported type %q", name, source.Type)
 	}
 
-	if strings.TrimSpace(source.Topic) == "" {
-		return fmt.Errorf("source %q: topic is required", name)
+	if !topicPattern.MatchString(source.Topic) {
+		return fmt.Errorf("source %q: topic must contain 1-64 letters, numbers, hyphens, or underscores", name)
 	}
 
 	if err := validateEnvReference("secret_env", source.SecretEnv, true); err != nil {
