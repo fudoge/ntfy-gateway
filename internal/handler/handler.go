@@ -35,23 +35,45 @@ func NewHandler(gateway Dispatcher, logger *slog.Logger) *http.ServeMux {
 }
 
 func handleWebhook(gateway Dispatcher, logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
+	sourceID := r.PathValue("source")
+	logger = logger.With(
+		slog.Group(
+			"request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+		),
+	)
+
 	if !isJSON(r.Header.Get("Content-Type")) {
-		http.Error(w, "content type must be application/json", http.StatusUnsupportedMediaType)
+		msg := "content type must be application/json"
+		logger.Info(
+			msg,
+			slog.Group("response", slog.Int("status", http.StatusUnsupportedMediaType)),
+		)
+		http.Error(w, msg, http.StatusUnsupportedMediaType)
 		return
 	}
 
 	credential, ok := bearerToken(r.Header.Get("Authorization"))
 	if !ok {
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		msg := "unauthorized"
+		logger.Info(
+			msg,
+			slog.Group("response", slog.Int("status", http.StatusUnauthorized)),
+		)
+		http.Error(w, msg, http.StatusUnauthorized)
 		return
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxWebhookBodySize)
-	sourceID := r.PathValue("source")
 
 	err := gateway.Dispatch(r.Context(), sourceID, credential, r.Body)
 	if err == nil {
+		logger.Info(
+			"webhook dispatched",
+			slog.Group("response", slog.Int("status", http.StatusAccepted)),
+		)
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -60,16 +82,42 @@ func handleWebhook(gateway Dispatcher, logger *slog.Logger, w http.ResponseWrite
 	switch {
 	case errors.Is(err, service.ErrUnauthorized):
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		msg := "unauthorized"
+		logger.Info(
+			msg,
+			slog.Group("response", slog.Int("status", http.StatusUnauthorized)),
+			slog.Any("error", err),
+		)
+		http.Error(w, msg, http.StatusUnauthorized)
 	case errors.As(err, &maxBytesError):
-		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		msg := "request body too large"
+		logger.Warn(
+			msg,
+			slog.Group("response", slog.Int("status", http.StatusRequestEntityTooLarge)),
+			slog.Any("error", err),
+		)
+		http.Error(w, msg, http.StatusRequestEntityTooLarge)
 	case errors.Is(err, service.ErrInvalidPayload):
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+		msg := "invalid payload"
+		logger.Warn(
+			msg,
+			slog.Group("response", slog.Int("status", http.StatusBadRequest)),
+			slog.Any("error", err),
+		)
+		http.Error(w, msg, http.StatusBadRequest)
 	case errors.Is(err, service.ErrPublish):
-		logger.Error("failed to publish webhook", "source", sourceID, "error", err)
+		logger.Error(
+			"failed to publish webhook",
+			slog.Group("response", slog.Int("status", http.StatusBadGateway)),
+			slog.Any("error", err),
+		)
 		http.Error(w, "upstream notification service failed", http.StatusBadGateway)
 	default:
-		logger.Error("failed to dispatch webhook", "source", sourceID, "error", err)
+		logger.Error(
+			"failed to dispatch webhook",
+			slog.Group("response", slog.Int("status", http.StatusInternalServerError)),
+			slog.Any("error", err),
+		)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
