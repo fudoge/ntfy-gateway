@@ -3,6 +3,9 @@ default_install_hook_types:
   - pre-push
   - commit-msg
 
+ci:
+  skip: [golangci-lint-full, go-vet]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

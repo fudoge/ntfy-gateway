@@ -23,6 +23,15 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
 
